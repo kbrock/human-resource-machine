@@ -105,14 +105,10 @@ module HRM
     private
 
     def parse_source_code
-      @source.split(/\R/).map do |line|
-        if line.start_with?("#")
-          nil
-        else
-          instruction, arg = line.split
-          [instruction.downcase.to_sym, arg]
-        end
-      end.compact
+      @source.split(/\R/).reject { |line| line.start_with?("#")}.map do |line|
+        instruction, arg = line.split
+        [instruction.downcase.to_sym, arg]
+      end
     end
   end
 end
