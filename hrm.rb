@@ -50,13 +50,13 @@ module HRM
     end
 
     def jump_if_zero(address)
-      if @value.zero?
+      if @value == 0 || @value == "0"
         @pc = address
       end
     end
 
     def jump_if_neg(address)
-      if @value.negative?
+      if @value < 1 || @value.to_s =~ /^-/
         @pc = address
       end
     end
