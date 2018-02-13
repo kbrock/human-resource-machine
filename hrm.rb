@@ -6,7 +6,7 @@ require 'json'
 
 module HRM
   module Instruction
-    def inbox
+    def inbox(address)
       unless @value = STDIN.gets&.chomp
         exit(0)
       end
@@ -16,7 +16,7 @@ module HRM
       end
     end
 
-    def outbox
+    def outbox(address)
       puts @value
       @value = nil
     end
@@ -88,17 +88,17 @@ module HRM
         instruction, arg = @im[@pc]
         @pc += 1
 
-        exit(0) if instruction.nil?
+        break if instruction.nil?
 
-        if arg.nil?
-          public_send(instruction)
-        else
+
+        if arg
           if arg =~ /\[\s*(\d+)\s*\]/
-            public_send(instruction, @memory[$1.to_i])
+            arg = @memory[$1.to_i]
           else
-            public_send(instruction, arg.to_i)
+            arg = arg.to_i
           end
         end
+        public_send(instruction, arg)
       end
     end
 
