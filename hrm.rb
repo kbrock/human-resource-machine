@@ -7,12 +7,12 @@ require 'json'
 module HRM
   module Instruction
     def inbox(address)
-      unless @value = STDIN.gets&.chomp
-        exit(0)
-      end
-
-      if @value =~ /^[-+]?[0-9]+$/
-        @value = @value.to_i
+      if @value = STDIN.gets&.chomp
+        if @value =~ /^[-+]?[0-9]+$/
+          @value = @value.to_i
+        end
+      else
+        @pc = -1
       end
     end
 
@@ -50,7 +50,7 @@ module HRM
     end
 
     def run
-      loop do
+      while @pc > 0
         instruction, arg = @im[@pc]
         @pc += 1
 
