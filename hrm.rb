@@ -6,29 +6,32 @@ require 'json'
 
 module HRM
   module Instruction
-    def inbox(state, address)
+    def inbox(state, _)
       if val = STDIN.gets
         val = val.chomp
         state.value = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val 
       else
         state.value = nil
-        state.pc = -100
+        state.pc = 100
       end
     end
 
-    def outbox(state, address)   ; puts state.value ; state.value = nil ; end
+    def outbox(state, _)   ; puts state.value ; state.value = nil ; end
     def copyfrom(state, address) ; state.value = state[address] ; end
     def copyto(state, address)   ; state[address] = state.value ; end
     def add(state, address)      ; state.value += state[address] ; end
     def sub(state, address)      ; state.value -= state[address] ; end
     def bumpup(state, address)   ; state.value = state[address] += 1 ; end
     def bumpdown(state, address) ; state.value = state[address] -= 1 ; end
-    def jump(state, address)     ; state.pc = address ; end
-    def jump_if_zero(state, address) ; state.pc = address if state.zero? ; end
-    def jump_if_neg(state, address) ; state.pc = address  if state.neg? ; end
+    def jump(state, line)     ; state.pc = line ; end
+    def jump_if_zero(state, line) ; state.pc = line if state.zero? ; end
+    def jump_if_neg(state, line) ; state.pc = line  if state.neg? ; end
+    alias bumpdn bumpdown
+    alias jumpz jump_if_zero
+    alias jumpn jump_if_neg
 
-    # for when no more instructions (nil defaults to done)
-    def done(state, address) ; state.pc = -100 ; end
+    # for when no more instructions (nil defaults to done) - think no longer necessary
+    def done(state, address) ; puts "done" ; state.pc = 100 ; end
   end
 end
 
@@ -79,7 +82,7 @@ module HRM
     end
 
     def run
-      while state.pc > 0
+      while state.pc >= 0 && state.pc < im.size
         instruction, arg = im[state.pc]
         state.inc
 
