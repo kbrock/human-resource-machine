@@ -2,8 +2,6 @@
 
 require 'json'
 
-#levels = JSON.parse(File.read('original_levels.json'))
-
 module HRM
   module Instruction
     def inbox(state, _)
@@ -33,6 +31,44 @@ module HRM
     def done(state, address) ; puts "done" ; state.pc = 100 ; end
   end
 
+  class Level
+    attr_accessor :level
+    def initialize(level = 1)
+      @levels = JSON.parse(File.read("original_levels.json"))
+      @level = level
+    end
+
+    def cur_level ; @levels[@level - 1] ; end
+
+    #"number": 1,
+    # "name": "Mail Room",
+    def name     ; cur_level["name"] ; end
+    # "instructions": "Drag commands into this area to build a program.\n\nYour program should tell your worker to grab each thing from the INBOX, and drop it into the OUTBOX.",
+    # "commands": [ "INBOX", "OUTBOX" ],
+    # "floor": {"columns": 3, "rows": 1, "tiles": {"9" : 0}}
+    def floor_size ; cur_level["floor"] ? cur_level["floor"]["columns"] * cur_level["floor"]["rows"] : 0 ; end
+    def floor_tiles
+      arr = Array.new(floor_size)
+      tiles = cur_level["floor"] && cur_level["floor"]["tiles"]
+      case tiles
+      when Hash
+        tiles.each { |n, v| arr[n.to_i] = v }
+      when Array
+        tiles.each_with_index { |v, i| arr[i] = v }
+      end
+      arr
+    end
+    # "examples": [
+    #   { "inbox": [ 1, 9, 4 ], "outbox": [ 1, 9, 4 ] },
+    #   { "inbox": [ 4, 3, 3 ], "outbox": [ 4, 3, 3 ] }
+    # ],
+    def example_inbox ; cur_level["examples"][0]["inbox"] ; end
+    def example_outbox ; cur_level["examples"][0]["outbox"] ; end
+    #"challenge": { "size": 6, "speed": 6}
+    def challenge_size ; cur_level["challenge"]["size"] ; end
+    def challenge_speed ; cur_level["challenge"]["speed"] ; end
+  end
+
   class IO
     def initialize(stdin = nil)
       @stdin = stdin || STDIN.read.chomp.split
@@ -40,24 +76,21 @@ module HRM
       @cntr = 0
     end
     def read
-      @stdin ? @stdin[@cntr += 1] : STDIN.gets&.chomp
+      @stdin.shift
     end
 
     def write(val)
       @stdout << val
-      puts val
     end
   end
 
   class State
-    MAX_MEMORY_SIZE = 25
-
     attr_accessor :pc, :value, :memory
     attr_accessor :io
     def initialize(io, memory = nil)
       @value = nil
       @pc = 1
-      @memory = memory || Array.new(MAX_MEMORY_SIZE)
+      @memory = memory
       @io = io
     end
 
@@ -121,15 +154,19 @@ module HRM
   class Machine
     include Instruction
 
-    def self.run(filepath)
+    def self.run(level_num, filepath)
+      level = Level.new(level_num.to_i)
       im = Compiler.compile(File.read(filepath))
-      new(im).run
+      machine = new(level, im)
+      result = machine.run
     end
 
     attr_accessor :state, :im
-    def initialize(im)
-      @io = IO.new()
-      @state = State.new(@io)
+    def initialize(level, im)
+      @level = level
+
+      @io = IO.new(level.example_inbox.dup)
+      @state = State.new(@io, level.floor_tiles)
       @im = im
     end
 
@@ -139,14 +176,23 @@ module HRM
     end
 
     def run
+      counter = 0
       while state.pc >= 0 && state.pc < im.size
         instruction, arg = im[state.pc]
+        counter += 1
         state.inc
 
         public_send(instruction || "done", state, deref(arg, state))
       end
+
+      {"size" => im.size, "speed" => counter, "outbox" => @io.outbox}
     end
   end
 end
 
-HRM::Machine.run(ARGV[0])
+if ARGV[1]
+  HRM::Machine.run(ARGV[0], ARGV[1])
+else
+  guess_level = ARGV[0].gsub(/[^0-9]/,'').to_i
+  HRM::Machine.run(guess_level, ARGV[0])
+end
