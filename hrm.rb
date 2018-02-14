@@ -45,25 +45,11 @@ module HRM
       @memory = Array.new(MAX_MEMORY_SIZE)
     end
 
-    def inc
-      @pc += 1
-    end
-
-    def [](index)
-      @memory[index]
-    end
-
-    def []=(index, value)
-      @memory[index] = value
-    end
-
-    def zero?
-      @value == 0 || @value == "0"
-    end
-
-    def neg?
-      value.to_s =~ /^-/ || value < 1
-    end
+    def inc ; @pc += 1 ; end
+    def [](index) ; @memory[index] ; end
+    def []=(index, value) ; @memory[index] = value ; end
+    def zero? ; value == 0 || value == "0" ; end
+    def neg?  ; value.to_s =~ /^-/ || value < 1 ; end
   end
 
   class Machine
