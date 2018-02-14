@@ -6,73 +6,99 @@ require 'json'
 
 module HRM
   module Instruction
-    def inbox(address)
-      if @value = STDIN.gets&.chomp
-        if @value =~ /^[-+]?[0-9]+$/
-          @value = @value.to_i
-        end
+    def inbox(state, address)
+      if val = STDIN.gets
+        val = val.chomp
+        state.value = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val 
       else
-        @pc = -1
+        state.value = nil
+        state.pc = -100
       end
     end
 
-    def outbox(address)   ; puts @value ; @value = nil ; end
-    def copyfrom(address) ; @value = @memory[address] ; end
-    def copyto(address)   ; @memory[address] = @value ; end
-    def add(address)      ; @value += @memory[address] ; end
-    def sub(address)      ; @value -= @memory[address] ; end
-    def bumpup(address)   ; @value = @memory[address] += 1 ; end
-    def bumpdown(address) ; @value = @memory[address] -= 1 ; end
-    def jump(address)     ; @pc = address ; end
-    def jump_if_zero(address) ; @pc = address if @value == 0 || @value == "0" ; end
-    def jump_if_neg(address) ; @pc = address  if @value < 1 || @value.to_s =~ /^-/ ; end
+    def outbox(state, address)   ; puts state.value ; state.value = nil ; end
+    def copyfrom(state, address) ; state.value = state[address] ; end
+    def copyto(state, address)   ; state[address] = state.value ; end
+    def add(state, address)      ; state.value += state[address] ; end
+    def sub(state, address)      ; state.value -= state[address] ; end
+    def bumpup(state, address)   ; state.value = state[address] += 1 ; end
+    def bumpdown(state, address) ; state.value = state[address] -= 1 ; end
+    def jump(state, address)     ; state.pc = address ; end
+    def jump_if_zero(state, address) ; state.pc = address if state.zero? ; end
+    def jump_if_neg(state, address) ; state.pc = address  if state.neg? ; end
   end
 end
 
 ####
 
 module HRM
-  class Machine
-    include Instruction
-
+  class State
     MAX_MEMORY_SIZE = 25
 
-    def self.run(filepath)
-      new(File.read(filepath)).run
-    end
-
-    def initialize(source)
-      @source = source
-      @im = [nil] + parse_source_code
+    attr_accessor :pc, :value, :memory
+    def initialize()
       @value = nil
       @pc = 1
       @memory = Array.new(MAX_MEMORY_SIZE)
     end
 
+    def inc
+      @pc += 1
+    end
+
+    def [](index)
+      @memory[index]
+    end
+
+    def []=(index, value)
+      @memory[index] = value
+    end
+
+    def zero?
+      @value == 0 || @value == "0"
+    end
+
+    def neg?
+      value.to_s =~ /^-/ || value < 1
+    end
+  end
+
+  class Machine
+    include Instruction
+
+    def self.run(filepath)
+      im = parse_source_code(File.read(filepath))
+      new(im).run
+    end
+
+    def self.parse_source_code(strs)
+      [nil] + strs.split(/\R/).reject { |line| line.start_with?("#")}.map do |line|
+        instruction, arg = line.split
+        [instruction.downcase.to_sym, arg]
+      end
+    end
+
+    attr_accessor :state, :im
+    def initialize(im)
+      @state = State.new
+      @im = im
+    end
+
     def run
-      while @pc > 0
-        instruction, arg = @im[@pc]
-        @pc += 1
+      while state.pc > 0
+        instruction, arg = im[state.pc]
+        state.inc
 
         break if instruction.nil?
 
         if arg
           if arg =~ /\[\s*(\d+)\s*\]/
-            arg = @memory[$1.to_i]
+            arg = state.memory[$1.to_i]
           else
             arg = arg.to_i
           end
         end
-        public_send(instruction, arg)
-      end
-    end
-
-    private
-
-    def parse_source_code
-      @source.split(/\R/).reject { |line| line.start_with?("#")}.map do |line|
-        instruction, arg = line.split
-        [instruction.downcase.to_sym, arg]
+        public_send(instruction, state, arg)
       end
     end
   end
