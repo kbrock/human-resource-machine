@@ -7,8 +7,7 @@ require 'json'
 module HRM
   module Instruction
     def inbox(state, _)
-      if val = STDIN.gets
-        val = val.chomp
+      if val = state.io.read
         state.value = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val 
       else
         state.value = nil
@@ -16,7 +15,7 @@ module HRM
       end
     end
 
-    def outbox(state, _)   ; puts state.value ; state.value = nil ; end
+    def outbox(state, _)   ; state.io.write state.value ; state.value = nil ; end
     def copyfrom(state, address) ; state.value = state[address] ; end
     def copyto(state, address)   ; state[address] = state.value ; end
     def add(state, address)      ; state.value += state[address] ; end
@@ -33,19 +32,33 @@ module HRM
     # for when no more instructions (nil defaults to done) - think no longer necessary
     def done(state, address) ; puts "done" ; state.pc = 100 ; end
   end
-end
 
-####
+  class IO
+    def initialize(stdin = nil)
+      @stdin = stdin || STDIN.read.chomp.split
+      @stdout = []
+      @cntr = 0
+    end
+    def read
+      @stdin ? @stdin[@cntr += 1] : STDIN.gets&.chomp
+    end
 
-module HRM
+    def write(val)
+      @stdout << val
+      puts val
+    end
+  end
+
   class State
     MAX_MEMORY_SIZE = 25
 
     attr_accessor :pc, :value, :memory
-    def initialize()
+    attr_accessor :io
+    def initialize(io, memory = nil)
       @value = nil
       @pc = 1
-      @memory = Array.new(MAX_MEMORY_SIZE)
+      @memory = memory || Array.new(MAX_MEMORY_SIZE)
+      @io = io
     end
 
     def inc ; @pc += 1 ; end
@@ -115,7 +128,8 @@ module HRM
 
     attr_accessor :state, :im
     def initialize(im)
-      @state = State.new
+      @io = IO.new()
+      @state = State.new(@io)
       @im = im
     end
 
