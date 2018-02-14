@@ -55,19 +55,62 @@ module HRM
     def neg?  ; value.to_s =~ /^-/ || value < 1 ; end
   end
 
+  class Compiler
+    def self.compile(strs)
+      lines = strs.split(/\R/)
+
+      line_no = 1 ; state = :read_code
+
+      # label to offset lookup
+      refs = {}
+      code = lines.map do |line|
+        case state
+
+        when :read_code
+          if line =~ /^([-#]|$)/ # single line comment or blank
+            nil
+          elsif line =~ /define *comment/i
+            state = :read_comment
+            nil
+          elsif line =~ /^ *([a-z]*):/
+            refs[$1] = line_no
+            nil
+          else # translate code
+            instruction, arg = line.split
+            instruction = instruction.downcase
+            if instruction == 'comment'
+              nil # skip
+            else
+              line_no += 1
+              # todo - dereference
+              arg = arg.to_i if arg =~ /\d/
+              [instruction.downcase.to_sym, arg]
+            end
+          end
+        when :read_comment
+          if line =~ /;$/
+          end
+          nil
+        end
+      end.compact
+      [nil] + code.each_with_index.map do |instruction, i|
+        if instruction[0] =~ /jump/
+          unless (back_ref = refs[instruction[1]])
+            raise "unknown back_ref on line #{i}: #{instruction.inspect}"
+          end
+          instruction[1] = back_ref
+        end
+        instruction
+      end
+    end
+  end
+
   class Machine
     include Instruction
 
     def self.run(filepath)
-      im = parse_source_code(File.read(filepath))
+      im = Compiler.compile(File.read(filepath))
       new(im).run
-    end
-
-    def self.parse_source_code(strs)
-      [nil] + strs.split(/\R/).reject { |line| line.start_with?("#")}.map do |line|
-        instruction, arg = line.split
-        [instruction.downcase.to_sym, arg]
-      end
     end
 
     attr_accessor :state, :im
