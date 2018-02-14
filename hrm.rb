@@ -26,6 +26,9 @@ module HRM
     def jump(state, address)     ; state.pc = address ; end
     def jump_if_zero(state, address) ; state.pc = address if state.zero? ; end
     def jump_if_neg(state, address) ; state.pc = address  if state.neg? ; end
+
+    # for when no more instructions (nil defaults to done)
+    def done(state, address) ; state.pc = -100 ; end
   end
 end
 
@@ -84,21 +87,17 @@ module HRM
       @im = im
     end
 
+    # note nil => 0 (not perfect but...)
+    def deref(arg, state)
+      arg && arg =~ /\[\s*(\d+)\s*\]/ ? state[$1.to_i] : arg.to_i
+    end
+
     def run
       while state.pc > 0
         instruction, arg = im[state.pc]
         state.inc
 
-        break if instruction.nil?
-
-        if arg
-          if arg =~ /\[\s*(\d+)\s*\]/
-            arg = state.memory[$1.to_i]
-          else
-            arg = arg.to_i
-          end
-        end
-        public_send(instruction, state, arg)
+        public_send(instruction || "done", state, deref(arg, state))
       end
     end
   end
