@@ -105,44 +105,57 @@ module HRM
     def self.compile(strs)
       lines = strs.split(/\R/)
 
-      line_no = 1 ; state = :read_code
+      line_no = 1 ; mode = :read_code
 
       # label to offset lookup
       refs = {}
       code = lines.map do |line|
-        case state
+        case mode
 
         when :read_code
-          if line =~ /^([-#]|$)/ # single line comment or blank
+          # -- this is a comment --
+          if line =~ /^ *([-#]|$)/ # single line comment or blank
             nil
+          # define comment
+          # .....
+          # .....;
           elsif line =~ /define *comment/i
-            state = :read_comment
+            mode = :read_comment
             nil
-          elsif line =~ /^ *([a-z]*):/
+          # my custom field
+          # reg 0: aa
+          elsif line =~ /^ *reg *(\d*): *(.*)/i
+            refs[$2] = $1.to_i
+            nil
+          # a:
+          elsif line =~ /^ *([a-z_0-9]*):/
             refs[$1] = line_no
             nil
           else # translate code
             instruction, arg = line.split
-            instruction = instruction.downcase
-            if instruction == 'comment'
-              nil # skip
-            else
+            instruction = instruction.downcase.to_sym
+            unless instruction == :comment
               line_no += 1
               # todo - dereference
-              arg = arg.to_i if arg =~ /\d/
-              [instruction.downcase.to_sym, arg]
+              if arg =~ /^\[(\d*)\]$/
+                arg, deref = [$1.to_i, true]
+              elsif arg =~ /^\d*$/
+                arg = arg.to_i
+              end
+              [instruction, arg, deref].compact
             end
           end
+        # middle of a define comment block
+        # looking for the trailing ;
         when :read_comment
-          if line =~ /;$/
-          end
+          mode = :read_code if line =~ /;/
           nil
         end
       end.compact
       [nil] + code.each_with_index.map do |instruction, i|
-        if instruction[0] =~ /jump/
+        if instruction[1].kind_of?(String)
           unless (back_ref = refs[instruction[1]])
-            raise "unknown back_ref on line #{i}: #{instruction.inspect}"
+            raise "unknown back_ref on line #{i}: #{instruction.inspect} - know: #{refs.keys}"
           end
           instruction[1] = back_ref
         end
@@ -170,21 +183,16 @@ module HRM
       @im = im
     end
 
-    # note nil => 0 (not perfect but...)
-    def deref(arg, state)
-      arg && arg =~ /\[\s*(\d+)\s*\]/ ? state[$1.to_i] : arg.to_i
-    end
-
     def run
       counter = 0
       while state.pc >= 0 && state.pc < im.size
-        instruction, arg = im[state.pc]
         counter += 1
+        instruction, arg, deref = im[state.pc]
         state.inc
 
-        public_send(instruction || "done", state, deref(arg, state))
-      end
 
+        arg = state[arg.to_i] if deref
+        public_send(instruction || "done", state, arg)
       {"size" => im.size, "speed" => counter, "outbox" => @io.outbox}
     end
   end
