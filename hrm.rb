@@ -5,7 +5,7 @@ require 'json'
 module HRM
   module Instruction
     def inbox(state, _)
-      if val = state.io.read
+      if val = state.read
         state.value = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val 
       else
         state.value = nil
@@ -13,19 +13,16 @@ module HRM
       end
     end
 
-    def outbox(state, _)   ; state.io.write state.value ; state.value = nil ; end
+    def outbox(state, _)   ; state.write state.value ; state.value = nil ; end
     def copyfrom(state, address) ; state.value = state[address] ; end
     def copyto(state, address)   ; state[address] = state.value ; end
     def add(state, address)      ; state.value += state[address] ; end
     def sub(state, address)      ; state.value -= state[address] ; end
     def bumpup(state, address)   ; state.value = state[address] += 1 ; end
-    def bumpdown(state, address) ; state.value = state[address] -= 1 ; end
+    def bumpdn(state, address) ; state.value = state[address] -= 1 ; end
     def jump(state, line)     ; state.pc = line ; end
-    def jump_if_zero(state, line) ; state.pc = line if state.zero? ; end
-    def jump_if_neg(state, line) ; state.pc = line  if state.neg? ; end
-    alias bumpdn bumpdown
-    alias jumpz jump_if_zero
-    alias jumpn jump_if_neg
+    def jumpz(state, line) ; state.pc = line if state.zero? ; end
+    def jumpn(state, line) ; state.pc = line  if state.neg? ; end
 
     # for when no more instructions (nil defaults to done) - think no longer necessary
     def done(state, address) ; puts "done" ; state.pc = 100 ; end
@@ -41,6 +38,7 @@ module HRM
     def cur_level ; @levels[@level - 1] ; end
 
     #"number": 1,
+    def number   ; cur_level["number"] ; end
     # "name": "Mail Room",
     def name     ; cur_level["name"] ; end
     # "instructions": "Drag commands into this area to build a program.\n\nYour program should tell your worker to grab each thing from the INBOX, and drop it into the OUTBOX.",
@@ -69,29 +67,16 @@ module HRM
     def challenge_speed ; cur_level["challenge"]["speed"] ; end
   end
 
-  class IO
-    def initialize(stdin = nil)
-      @stdin = stdin || STDIN.read.chomp.split
-      @stdout = []
-      @cntr = 0
-    end
-    def read
-      @stdin.shift
-    end
-
-    def write(val)
-      @stdout << val
-    end
-  end
-
   class State
     attr_accessor :pc, :value, :memory
-    attr_accessor :io
-    def initialize(io, memory = nil)
+    attr_accessor :stdin, :stdout
+    def initialize(memory, stdin)
       @value = nil
       @pc = 1
       @memory = memory
-      @io = io
+
+      @stdin = stdin
+      @stdout = []
     end
 
     def inc ; @pc += 1 ; end
@@ -99,6 +84,9 @@ module HRM
     def []=(index, value) ; @memory[index] = value ; end
     def zero? ; value == 0 || value == "0" ; end
     def neg?  ; value.to_s =~ /^-/ || value < 1 ; end
+
+    def read ; @stdin.shift ; end
+    def write(val) ; @stdout << val ; end
   end
 
   class Compiler
@@ -122,7 +110,7 @@ module HRM
           elsif line =~ /define *comment/i
             mode = :read_comment
             nil
-          # my custom field
+          # NOTE: my custom field
           # reg 0: aa
           elsif line =~ /^ *reg *(\d*): *(.*)/i
             refs[$2] = $1.to_i
@@ -141,6 +129,10 @@ module HRM
                 arg, deref = [$1.to_i, true]
               elsif arg =~ /^\d*$/
                 arg = arg.to_i
+              else # dereference what we can
+                # overly simplistic. pretty much the same as the second pass below
+                # optimal 1 1/2 phase parser would be to remember where to run next block
+                arg = refs[arg] if refs.key?(arg)
               end
               [instruction, arg, deref].compact
             end
@@ -167,33 +159,66 @@ module HRM
   class Machine
     include Instruction
 
-    def self.run(level_num, filepath)
+    def self.run(level_num, filepath, debug = false)
       level = Level.new(level_num.to_i)
+
+      state = State.new(level.floor_tiles, level.example_inbox.dup)
       im = Compiler.compile(File.read(filepath))
-      machine = new(level, im)
-      result = machine.run
+
+      # display compiled code
+      if debug
+        puts im.each_with_index.map { |(instr, addr, deref), i| "%2s: %-8s %s" % [i, instr, deref ? "[#{addr}]" : addr] }
+      end
+
+      machine = new(state, im)
+      result = machine.run(debug)
+
+      result = {
+        "level"   => level.number,
+        "speed"   => result["speed"],
+        "size"    => im.size,
+        "outbox"  => state.stdout,
+        "success" => (level.example_outbox == state.stdout),
+      }
+
+      puts "#{result.inspect}"
+      if !result["success"]
+        puts "level:  #{level.number}"
+        puts "inbox:  #{level.example_inbox.inspect}"
+        puts "outbox: #{level.example_outbox.inspect}"
+        puts
+        puts "did not match output"
+        puts "expected: #{level.example_outbox}"
+        puts "outbox:   #{machine.state.stdout}"
+      end
     end
 
     attr_accessor :state, :im
-    def initialize(level, im)
-      @level = level
-
-      @io = IO.new(level.example_inbox.dup)
-      @state = State.new(@io, level.floor_tiles)
+    def initialize(state, im)
+      @state = state
       @im = im
     end
 
-    def run
+    def run(debug = false)
       counter = 0
       while state.pc >= 0 && state.pc < im.size
         counter += 1
         instruction, arg, deref = im[state.pc]
+
+        puts "#{counter}> #{state.pc}:#{instruction || "done"} #{deref ? "[#{arg}]" : arg}" if debug
+
         state.inc
-
-
         arg = state[arg.to_i] if deref
         public_send(instruction || "done", state, arg)
-      {"size" => im.size, "speed" => counter, "outbox" => @io.outbox}
+        if debug
+          puts "inbox:  #{state.stdin[0..5].inspect}"
+          print "hands: [#{state.value || " "}]"
+          puts @state.memory.empty? ? "" : " memory: #{state.memory.inspect}"
+          puts "outbox: #{state.stdout[0..5].inspect}"
+          puts
+        end
+      end
+      {"speed" => counter}
     end
   end
 end
