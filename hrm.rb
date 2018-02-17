@@ -226,6 +226,6 @@ end
 if ARGV[1]
   HRM::Machine.run(ARGV[0], ARGV[1])
 else
-  guess_level = ARGV[0].gsub(/[^0-9]/,'').to_i
-  HRM::Machine.run(guess_level, ARGV[0])
+  guess_level = ARGV[0].gsub(/^[^0-9]*([0-9]*)[^0-9].*$/) { $1 }.to_i
+  HRM::Machine.run(guess_level, ARGV[0], true)
 end
