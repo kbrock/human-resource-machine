@@ -199,17 +199,31 @@ module HRM
       @im = im
     end
 
+    def deref_arg(arg, deref, state)
+      deref ? state[arg] : arg
+    end
+
+    def deref_str(arg, deref)
+      deref ? "[#{arg}]" : arg
+    end
+
     def run(debug = false)
       counter = 0
       while state.pc >= 0 && state.pc < im.size
         counter += 1
+        raise "took too many instructions" if counter > 2000
         instruction, arg, deref = im[state.pc]
 
-        puts "#{counter}> #{state.pc}:#{instruction || "done"} #{deref ? "[#{arg}]" : arg}" if debug
+        puts "#{counter}> #{state.pc}: #{instruction || "done"} #{deref_str(arg, deref)}" if debug
 
+        # increment state before instruction - to make jump easier
         state.inc
-        arg = state[arg.to_i] if deref
-        public_send(instruction || "done", state, arg)
+        begin
+          public_send(instruction || "done", state, deref_arg(arg, deref, state))
+        rescue => e
+          puts "#{counter}> #{state.pc - 1}: #{instruction || "done"} #{deref_str(arg, deref)}" unless debug
+          raise
+        end
         if debug
           puts "inbox:  #{state.stdin[0..5].inspect}"
           print "hands: [#{state.value || " "}]"
