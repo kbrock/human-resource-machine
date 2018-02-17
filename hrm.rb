@@ -31,7 +31,7 @@ module HRM
   class Level
     attr_accessor :level
     def initialize(level = 1)
-      @levels = JSON.parse(File.read("original_levels.json"))
+      @levels = JSON.parse(File.read(File.expand_path("original_levels.json", __dir__)))
       @level = level
     end
 
