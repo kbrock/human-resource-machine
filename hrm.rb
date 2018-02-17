@@ -199,19 +199,18 @@ module HRM
         "level"   => level.number,
         "speed"   => result["speed"],
         "size"    => im.size,
-        "outbox"  => state.stdout,
         "success" => (level.example_outbox == state.stdout),
       }
 
       puts "#{result.inspect}"
       if !result["success"]
         puts "level:  #{level.number}"
-        puts "inbox:  #{level.example_inbox.inspect}"
-        puts "outbox: #{level.example_outbox.inspect}"
+        puts "name:   #{level.name}"
         puts
-        puts "did not match output"
+        puts "inbox:  #{level.example_inbox.inspect}"
+        puts
         puts "expected: #{level.example_outbox}"
-        puts "outbox:   #{machine.state.stdout}"
+        puts "outbox:   #{state.stdout}"
       end
     end
 
