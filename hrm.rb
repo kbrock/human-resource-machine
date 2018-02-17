@@ -6,23 +6,23 @@ module HRM
   module Instruction
     def inbox(state, _)
       if val = state.read
-        state.value = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val 
-      else
+        state.hands = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val
+      else # nothing for input - end of program
         state.value = nil
         state.pc = 100
       end
     end
 
-    def outbox(state, _)   ; state.write state.value ; state.value = nil ; end
-    def copyfrom(state, address) ; state.value = state[address] ; end
-    def copyto(state, address)   ; state[address] = state.value ; end
-    def add(state, address)      ; state.value += state[address] ; end
-    def sub(state, address)      ; state.value -= state[address] ; end
-    def bumpup(state, address)   ; state.value = state[address] += 1 ; end
-    def bumpdn(state, address) ; state.value = state[address] -= 1 ; end
-    def jump(state, line)     ; state.pc = line ; end
+    def outbox(state, _)   ; state.write state.hands ; state.value = nil ; end
+    def copyfrom(state, address) ; state.hands = state[address] ; end
+    def copyto(state, address)   ; state[address] = state.hands ; end
+    def add(state, address)      ; state.hands += state[address] ; end
+    def sub(state, address)      ; state.hands -= state[address] ; end
+    def bumpup(state, address)   ; state.hands = state[address] += 1 ; end
+    def bumpdn(state, address)   ; state.hands = state[address] -= 1 ; end
+    def jump(state, line)  ; state.pc = line ; end
     def jumpz(state, line) ; state.pc = line if state.zero? ; end
-    def jumpn(state, line) ; state.pc = line  if state.neg? ; end
+    def jumpn(state, line) ; state.pc = line if state.neg?  ; end
 
     # for when no more instructions (nil defaults to done) - think no longer necessary
     def done(state, address) ; puts "done" ; state.pc = 100 ; end
@@ -80,10 +80,30 @@ module HRM
     end
 
     def inc ; @pc += 1 ; end
-    def [](index) ; @memory[index] ; end
-    def []=(index, value) ; @memory[index] = value ; end
-    def zero? ; value == 0 || value == "0" ; end
-    def neg?  ; value.to_s =~ /^-/ || value < 1 ; end
+
+    def hands
+      @value or raise "empty hands"
+    end
+
+    def hands=(val)
+      @value = val or raise "hands set to no value"
+    end
+
+    def [](index)
+      raise "invalid address on floor" unless index
+      @memory[index] or raise "empty floor address #{index}"
+    end
+
+    def []=(index, value)
+      raise "invalid address on floor" unless index
+      @memory[index] = value or raise "floor set to no value"
+    end
+
+    alias floor  :[]
+    alias floor= :[]=
+
+    def zero? ; hands == "0"       || hands == 0 ; end
+    def neg?  ; hands.to_s =~ /^-/ || hands < 1  ; end
 
     def read ; @stdin.shift ; end
     def write(val) ; @stdout << val ; end
