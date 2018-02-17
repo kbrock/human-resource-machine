@@ -9,7 +9,7 @@ module HRM
         state.hands = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val
       else # nothing for input - end of program
         state.value = nil
-        state.pc = 100
+        state.exit!
       end
     end
 
@@ -73,6 +73,7 @@ module HRM
     def initialize(memory, stdin)
       @value = nil
       @pc = 1
+      @exit = false
       @memory = memory
 
       @stdin = stdin
@@ -80,7 +81,8 @@ module HRM
     end
 
     def inc ; @pc += 1 ; end
-
+    def exit! ; @exit = true ; end
+    def exit? ; @exit ; end
     def hands
       @value or raise "empty hands"
     end
@@ -229,7 +231,7 @@ module HRM
 
     def run(debug = false)
       counter = 0
-      while state.pc >= 0 && state.pc < im.size
+      while !state.exit? && state.pc < im.size
         counter += 1
         raise "took too many instructions" if counter > 2000
         instruction, arg, deref = im[state.pc]
