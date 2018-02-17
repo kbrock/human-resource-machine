@@ -176,24 +176,30 @@ module HRM
         instruction
       end
     end
+
+    def self.print_source(im)
+      instr_size = Math::log10(im.size).floor + 1
+      im.each_with_index do |(instr, addr, deref), i|
+        puts "%*s: %-8s %s" % [instr_size, i, instr, deref ? "[#{addr}]" : addr]
+      end
+    end
   end
 
   class Machine
     include Instruction
 
-    def self.run(level_num, filepath, debug = false)
+    def self.run(level_num, filepath, options = {})
       level = Level.new(level_num.to_i)
-
       state = State.new(level.floor_tiles, level.example_inbox.dup)
       im = Compiler.compile(File.read(filepath))
 
       # display compiled code
-      if debug
-        puts im.each_with_index.map { |(instr, addr, deref), i| "%2s: %-8s %s" % [i, instr, deref ? "[#{addr}]" : addr] }
+      if options[:print_source]
+        Compiler.print_source(im)
       end
 
-      machine = new(state, im)
-      result = machine.run(debug)
+      # currently, only producing {"speed" => }
+      result = new(state, im).run(options[:debug])
 
       result = {
         "level"   => level.number,
@@ -258,9 +264,28 @@ module HRM
   end
 end
 
-if ARGV[1]
-  HRM::Machine.run(ARGV[0], ARGV[1])
-else
-  guess_level = ARGV[0].gsub(/^[^0-9]*([0-9]*)[^0-9].*$/) { $1 }.to_i
-  HRM::Machine.run(guess_level, ARGV[0], true)
+require "optparse"
+
+options = {:debug => false, :print_source => false}
+
+ARGV.options do |opts|
+  opts.banner = "Usage:  #{File.basename($PROGRAM_NAME)} [--debug] [level] asm_file"
+
+  opts.on( "-h", "--help",   "Show this message." ) { puts opts ; exit }
+  opts.on(       "--debug",  "Debug instructions" ) { options[:debug] = true}
+  opts.on(       "--source", "print source" ) { options[:print_source] = true}
+
+  begin
+    opts.parse!
+  rescue
+    puts opts
+    exit
+  end
 end
+
+def guess_level(filename)
+  ARGV[0].gsub(/^[^0-9]*([0-9]*)[^0-9].*$/) { $1 }.to_i
+end
+
+level, filename = ARGV[1] ? ARGV[0..1] : [guess_level(ARGV[0]), ARGV[0]]
+HRM::Machine.run(level, filename, options)
