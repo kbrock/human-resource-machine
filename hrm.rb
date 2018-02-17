@@ -145,7 +145,7 @@ module HRM
         end
       end.compact
       [nil] + code.each_with_index.map do |instruction, i|
-        if instruction[1].kind_of?(String)
+        if instruction[1].kind_of?(String) && instruction[0] != :define
           unless (back_ref = refs[instruction[1]])
             raise "unknown back_ref on line #{i}: #{instruction.inspect} - know: #{refs.keys}"
           end
