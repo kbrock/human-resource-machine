@@ -239,6 +239,11 @@ module HRM
       deref ? state[arg] : arg
     end
 
+    def inspect_op(im, pc, counter = nil)
+      instruction, arg, deref = im[pc]
+      "#{counter}#{counter ? "> " : ""}#{pc}: #{instruction || "done"} #{deref_str(arg, deref)}"
+    end
+
     def deref_str(arg, deref)
       deref ? "[#{arg}]" : arg
     end
@@ -248,16 +253,17 @@ module HRM
       while !state.exit?
         counter += 1
         raise "took too many instructions" if counter > 2000
-        instruction, arg, deref = im[state.pc]
+        cur_pc = state.pc
 
-        puts "#{counter}> #{state.pc}: #{instruction || "done"} #{deref_str(arg, deref)}" if debug
+        puts inspect_op(im, cur_pc, counter) if debug
 
         # increment state before instruction - to make jump easier
         state.inc
         begin
+          instruction, arg, deref = im[cur_pc]
           public_send(instruction || "done", state, deref_arg(arg, deref, state))
         rescue => e
-          puts "#{counter}> #{state.pc - 1}: #{instruction || "done"} #{deref_str(arg, deref)}" unless debug
+          puts inspect_op(im, cur_pc, counter) unless debug
           raise
         end
         puts state.inspect, "" if debug
