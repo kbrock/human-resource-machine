@@ -3,7 +3,14 @@
 require 'json'
 
 module HRM
-  module Instruction
+  class Op
+    attr_accessor :name, :arg, :deref
+    def initialize(name = nil, arg = nil, deref = nil)
+      @name  = name
+      @arg   = arg
+      @deref = deref
+    end
+
     def inbox(state, _)
       if val = state.read
         state.hands = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val
@@ -27,14 +34,31 @@ module HRM
     # for when no more instructions (nil defaults to done) - think no longer necessary
     def done(state, address) ; state.exit!(:end) ; end
 
-    def op(name)
-      ->(arg, deref, state) { state.inc if name ; public_send(name || "done", state, deref ? state[arg] : arg) }
+    def call(state)
+      state.inc if name
+      public_send(name || "done", state, deref ? state[arg] : arg)
+    end
+
+    def inspect(pc, counter)
+      deref_str = deref ? "[#{arg}]" : arg
+      "#{counter + 1}> #{pc}: #{name || "done"} #{deref_str}"
+    end
+
+    NIL = Op.new(nil, nil, nil)
+  end
+
+  module Instruction
+    def op(im, pc)
+      instruction, arg, deref = im[pc]
+      Op.new(instruction, arg, deref)
+    end
+
+    def old_op(name)
+      ->(arg, deref, state) { Op.new(name, arg, deref).call(state) }
     end
 
     def inspect_op(im, pc, counter)
-      instruction, arg, deref = im[pc]
-      deref_str = deref ? "[#{arg}]" : arg
-      "#{counter + 1}>#{pc}: #{instruction || "done"} #{deref_str}"
+      op(im, pc).inspect(pc, counter)
     end
   end
 
@@ -244,7 +268,7 @@ module HRM
 
     def step(state, im)
       instruction, arg, deref = im[state.pc]
-      op(instruction).call(arg, deref, state)
+      old_op(instruction).call(arg, deref, state)
     end
 
     COUNTER_MAX = 2000
