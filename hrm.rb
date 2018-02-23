@@ -81,6 +81,14 @@ module HRM
       @stdout = []
     end
 
+    def inspect
+      [
+        "inbox:  #{stdin[0..5].inspect}",
+        "hands: [#{value || " "}]#{memory.empty? ? "" : " memory: #{memory.inspect}"}",
+        "outbox: #{stdout[0..5].inspect}"
+      ]
+    end
+
     def inc ; @pc += 1 ; end
     def exit! ; @exit = true ; end
     def exit? ; @exit || (pc >= @max_im) ; end
@@ -252,13 +260,7 @@ module HRM
           puts "#{counter}> #{state.pc - 1}: #{instruction || "done"} #{deref_str(arg, deref)}" unless debug
           raise
         end
-        if debug
-          puts "inbox:  #{state.stdin[0..5].inspect}"
-          print "hands: [#{state.value || " "}]"
-          puts @state.memory.empty? ? "" : " memory: #{state.memory.inspect}"
-          puts "outbox: #{state.stdout[0..5].inspect}"
-          puts
-        end
+        puts state.inspect, "" if debug
       end
       {"speed" => counter}
     end
