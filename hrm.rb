@@ -25,7 +25,7 @@ module HRM
     def jumpn(state, line) ; state.pc = line if state.neg?  ; end
 
     # for when no more instructions (nil defaults to done) - think no longer necessary
-    def done(state, address) ; puts "done" ; state.pc = 100 ; end
+    def done(state, address) ; puts "done" ; state.pc = 10000 ; end
   end
 
   class Level
@@ -68,12 +68,13 @@ module HRM
   end
 
   class State
-    attr_accessor :pc, :value, :memory
+    attr_accessor :pc, :value, :memory, :max_im
     attr_accessor :stdin, :stdout
-    def initialize(memory, stdin)
+    def initialize(memory, stdin, max_im)
       @value = nil
       @pc = 1
       @exit = false
+      @max_im = max_im
       @memory = memory
 
       @stdin = stdin
@@ -82,7 +83,7 @@ module HRM
 
     def inc ; @pc += 1 ; end
     def exit! ; @exit = true ; end
-    def exit? ; @exit ; end
+    def exit? ; @exit || (pc >= @max_im) ; end
     def hands
       @value or raise "empty hands"
     end
@@ -190,8 +191,8 @@ module HRM
 
     def self.run(level_num, filepath, options = {})
       level = Level.new(level_num.to_i)
-      state = State.new(level.floor_tiles, level.example_inbox.dup)
       im = Compiler.compile(File.read(filepath))
+      state = State.new(level.floor_tiles, level.example_inbox.dup, im.size)
 
       # display compiled code
       if options[:print_source]
@@ -236,7 +237,7 @@ module HRM
 
     def run(debug = false)
       counter = 0
-      while !state.exit? && state.pc < im.size
+      while !state.exit?
         counter += 1
         raise "took too many instructions" if counter > 2000
         instruction, arg, deref = im[state.pc]
