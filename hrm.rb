@@ -47,21 +47,6 @@ module HRM
     NIL = Op.new(nil, nil, nil)
   end
 
-  module Instruction
-    def op(im, pc)
-      instruction, arg, deref = im[pc]
-      Op.new(instruction, arg, deref)
-    end
-
-    def old_op(name)
-      ->(arg, deref, state) { Op.new(name, arg, deref).call(state) }
-    end
-
-    def inspect_op(im, pc, counter)
-      op(im, pc).inspect(pc, counter)
-    end
-  end
-
   class Level
     attr_accessor :level
     def initialize(level = 1)
@@ -231,8 +216,6 @@ module HRM
   end
 
   class Machine
-    include Instruction
-
     def self.run(level_num, filepath, options = {})
       level = Level.new(level_num.to_i)
       im = Compiler.compile(File.read(filepath))
@@ -266,16 +249,14 @@ module HRM
       end
     end
 
-    def step(state, im)
-      instruction, arg, deref = im[state.pc]
-      old_op(instruction).call(arg, deref, state)
-    end
-
     COUNTER_MAX = 2000
     def run(state, im, debug = false)
       while !state.exit?
-        puts inspect_op(im, state.pc, state.counter) if debug
-        step(state, im)
+        instruction, arg, deref = im[state.pc]
+        o = Op.new(instruction, arg, deref)
+
+        puts o.inspect(state.pc, state.counter) if debug
+        o.call(state)
         state.exit!(:infinite) if state.counter > COUNTER_MAX
         puts state.inspect, "" if debug
       end
