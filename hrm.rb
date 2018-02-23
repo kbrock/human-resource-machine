@@ -26,6 +26,10 @@ module HRM
 
     # for when no more instructions (nil defaults to done) - think no longer necessary
     def done(state, address) ; puts "done" ; state.pc = 10000 ; end
+
+    def op(name)
+      ->(arg1, arg2) { public_send(name || "done", arg1, arg2) }
+    end
   end
 
   class Level
@@ -208,7 +212,7 @@ module HRM
       end
 
       # currently, only producing {"speed" => }
-      result = new(state, im).run(options[:debug])
+      result = new.run(state, im, options[:debug])
 
       result = {
         "level"   => level.number,
@@ -229,16 +233,6 @@ module HRM
       end
     end
 
-    attr_accessor :state, :im
-    def initialize(state, im)
-      @state = state
-      @im = im
-    end
-
-    def deref_arg(arg, deref, state)
-      deref ? state[arg] : arg
-    end
-
     def inspect_op(im, pc, counter = nil)
       instruction, arg, deref = im[pc]
       "#{counter}#{counter ? "> " : ""}#{pc}: #{instruction || "done"} #{deref_str(arg, deref)}"
@@ -248,7 +242,7 @@ module HRM
       deref ? "[#{arg}]" : arg
     end
 
-    def run(debug = false)
+    def run(state, im, debug = false)
       counter = 0
       while !state.exit?
         counter += 1
@@ -261,7 +255,7 @@ module HRM
         state.inc
         begin
           instruction, arg, deref = im[cur_pc]
-          public_send(instruction || "done", state, deref_arg(arg, deref, state))
+          op(instruction).call(state, deref ? state[arg] : arg)
         rescue => e
           puts inspect_op(im, cur_pc, counter) unless debug
           raise
