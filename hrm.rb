@@ -9,7 +9,7 @@ module HRM
         state.hands = val =~ /^[-+]?[0-9]+$/ ? val.to_i : val
       else # nothing for input - end of program
         state.value = nil
-        state.exit!
+        state.exit!(:eof)
       end
     end
 
@@ -25,10 +25,16 @@ module HRM
     def jumpn(state, line) ; state.pc = line if state.neg?  ; end
 
     # for when no more instructions (nil defaults to done) - think no longer necessary
-    def done(state, address) ; puts "done" ; state.pc = 10000 ; end
+    def done(state, address) ; state.exit!(:end) ; end
 
     def op(name)
-      ->(arg1, arg2) { public_send(name || "done", arg1, arg2) }
+      ->(arg, deref, state) { state.inc if name ; public_send(name || "done", state, deref ? state[arg] : arg) }
+    end
+
+    def inspect_op(im, pc, counter)
+      instruction, arg, deref = im[pc]
+      deref_str = deref ? "[#{arg}]" : arg
+      "#{counter + 1}>#{pc}: #{instruction || "done"} #{deref_str}"
     end
   end
 
@@ -72,13 +78,14 @@ module HRM
   end
 
   class State
-    attr_accessor :pc, :value, :memory, :max_im
+    attr_accessor :pc, :value, :memory, :counter
     attr_accessor :stdin, :stdout
-    def initialize(memory, stdin, max_im)
-      @value = nil
+    def initialize(memory, stdin)
+      @counter = 0
       @pc = 1
       @exit = false
-      @max_im = max_im
+
+      @value = nil
       @memory = memory
 
       @stdin = stdin
@@ -88,14 +95,15 @@ module HRM
     def inspect
       [
         "inbox:  #{stdin[0..5].inspect}",
-        "hands: [#{value || " "}]#{memory.empty? ? "" : " memory: #{memory.inspect}"}",
+        "hands: [#{@value || " "}]#{@memory.empty? ? "" : " memory: #{@memory.inspect}"}",
         "outbox: #{stdout[0..5].inspect}"
       ]
     end
 
-    def inc ; @pc += 1 ; end
-    def exit! ; @exit = true ; end
-    def exit? ; @exit || (pc >= @max_im) ; end
+    def inc ; @pc += 1 ; @counter += 1 ; self ; end
+    def exit!(status = true) ; @exit = status ; self ; end
+    def status ; @exit ; end
+    def exit?  ; @exit ; end
     def hands
       @value or raise "empty hands"
     end
@@ -204,7 +212,7 @@ module HRM
     def self.run(level_num, filepath, options = {})
       level = Level.new(level_num.to_i)
       im = Compiler.compile(File.read(filepath))
-      state = State.new(level.floor_tiles, level.example_inbox.dup, im.size)
+      state = State.new(level.floor_tiles, level.example_inbox.dup)
 
       # display compiled code
       if options[:print_source]
@@ -212,13 +220,14 @@ module HRM
       end
 
       # currently, only producing {"speed" => }
-      result = new.run(state, im, options[:debug])
+      state = new.run(state, im, options[:debug])
 
       result = {
         "level"   => level.number,
-        "speed"   => result["speed"],
+        "speed"   => state.counter,
         "size"    => im.size,
         "success" => (level.example_outbox == state.stdout),
+        "status"  => state.status,
       }
 
       puts "#{result.inspect}"
@@ -233,36 +242,21 @@ module HRM
       end
     end
 
-    def inspect_op(im, pc, counter = nil)
-      instruction, arg, deref = im[pc]
-      "#{counter}#{counter ? "> " : ""}#{pc}: #{instruction || "done"} #{deref_str(arg, deref)}"
+    def step(state, im)
+      instruction, arg, deref = im[state.pc]
+      op(instruction).call(arg, deref, state)
     end
 
-    def deref_str(arg, deref)
-      deref ? "[#{arg}]" : arg
-    end
-
+    COUNTER_MAX = 2000
     def run(state, im, debug = false)
-      counter = 0
       while !state.exit?
-        counter += 1
-        raise "took too many instructions" if counter > 2000
-        cur_pc = state.pc
-
-        puts inspect_op(im, cur_pc, counter) if debug
-
-        # increment state before instruction - to make jump easier
-        state.inc
-        begin
-          instruction, arg, deref = im[cur_pc]
-          op(instruction).call(state, deref ? state[arg] : arg)
-        rescue => e
-          puts inspect_op(im, cur_pc, counter) unless debug
-          raise
-        end
+        puts inspect_op(im, state.pc, state.counter) if debug
+        step(state, im)
+        state.exit!(:infinite) if state.counter > COUNTER_MAX
         puts state.inspect, "" if debug
       end
-      {"speed" => counter}
+
+      state
     end
   end
 end
