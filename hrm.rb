@@ -5,7 +5,8 @@ require 'json'
 module HRM
   class Op
     attr_accessor :name, :arg, :deref
-    def initialize(name = nil, arg = nil, deref = nil)
+    def initialize(line = nil, name = nil, arg = nil, deref = nil)
+      @line  = line
       @name  = name
       @arg   = arg
       @deref = deref
@@ -39,12 +40,12 @@ module HRM
       public_send(name || "done", state, deref ? state[arg] : arg)
     end
 
-    def inspect(pc, counter)
+    def inspect(counter)
       deref_str = deref ? "[#{arg}]" : arg
-      "#{counter + 1}> #{pc}: #{name || "done"} #{deref_str}"
+      "#{counter + 1}> #{@line}: #{name || "done"} #{deref_str}"
     end
 
-    DONE = Op.new(nil, nil, nil)
+    DONE = Op.new(nil, nil, nil, nil)
   end
 
   class Level
@@ -186,8 +187,7 @@ module HRM
                 # optimal 1 1/2 phase parser would be to remember where to run next block
                 arg = refs[arg] if refs.key?(arg)
               end
-              #[instruction, arg, deref].compact
-              Op.new(instruction, arg, deref)
+              Op.new(line_no - 1, instruction, arg, deref)
             end
           end
         # middle of a define comment block
@@ -255,7 +255,7 @@ module HRM
       while !state.exit?
         o = im[state.pc] || Op::DONE
 
-        puts o.inspect(state.pc, state.counter) if debug
+        puts o.inspect(state.counter) if debug
         o.call(state)
         state.exit!(:infinite) if state.counter > COUNTER_MAX
         puts state.inspect, "" if debug
