@@ -60,8 +60,8 @@ module HRM
     #   { "inbox": [ 1, 9, 4 ], "outbox": [ 1, 9, 4 ] },
     #   { "inbox": [ 4, 3, 3 ], "outbox": [ 4, 3, 3 ] }
     # ],
-    def example_inbox ; cur_level["examples"][0]["inbox"] ; end
-    def example_outbox ; cur_level["examples"][0]["outbox"] ; end
+    def example_inbox ; cur_level["examples"][0]["inbox"].freeze ; end
+    def example_outbox ; cur_level["examples"][0]["outbox"].freeze ; end
     #"challenge": { "size": 6, "speed": 6}
     def challenge_size ; cur_level["challenge"]["size"] ; end
     def challenge_speed ; cur_level["challenge"]["speed"] ; end
