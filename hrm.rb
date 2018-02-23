@@ -44,7 +44,7 @@ module HRM
       "#{counter + 1}> #{pc}: #{name || "done"} #{deref_str}"
     end
 
-    NIL = Op.new(nil, nil, nil)
+    DONE = Op.new(nil, nil, nil)
   end
 
   class Level
@@ -186,7 +186,8 @@ module HRM
                 # optimal 1 1/2 phase parser would be to remember where to run next block
                 arg = refs[arg] if refs.key?(arg)
               end
-              [instruction, arg, deref].compact
+              #[instruction, arg, deref].compact
+              Op.new(instruction, arg, deref)
             end
           end
         # middle of a define comment block
@@ -196,21 +197,21 @@ module HRM
           nil
         end
       end.compact
-      [nil] + code.each_with_index.map do |instruction, i|
-        if instruction[1].kind_of?(String) && instruction[0] != :define
-          unless (back_ref = refs[instruction[1]])
-            raise "unknown back_ref on line #{i}: #{instruction.inspect} - know: #{refs.keys}"
+      [nil] + code.each_with_index.map do |op, i|
+        if op.arg.kind_of?(String) && op.name != :define
+          unless (back_ref = refs[op.arg])
+            raise "unknown back_ref on line #{i}: #{op.name.inspect} - know: #{refs.keys}"
           end
-          instruction[1] = back_ref
+          op.arg = back_ref
         end
-        instruction
+        op
       end
     end
 
     def self.print_source(im)
       instr_size = Math::log10(im.size).floor + 1
-      im.each_with_index do |(instr, addr, deref), i|
-        puts "%*s: %-8s %s" % [instr_size, i, instr, deref ? "[#{addr}]" : addr]
+      im.each_with_index do |c, i|
+        puts "%*s: %-8s %s" % [instr_size, i, c.name, c.deref ? "[#{c.addr}]" : c.addr]
       end
     end
   end
@@ -252,8 +253,7 @@ module HRM
     COUNTER_MAX = 2000
     def run(state, im, debug = false)
       while !state.exit?
-        instruction, arg, deref = im[state.pc]
-        o = Op.new(instruction, arg, deref)
+        o = im[state.pc] || Op::DONE
 
         puts o.inspect(state.pc, state.counter) if debug
         o.call(state)
