@@ -38,6 +38,7 @@ module HRM
     def call(state)
       state.inc if name
       public_send(name || "done", state, deref ? state[arg] : arg)
+      state
     end
 
     def inspect(counter)
@@ -96,7 +97,7 @@ module HRM
       @exit = false
 
       @value = nil
-      @memory = memory
+      @memory = memory # deep copy
 
       @stdin = stdin
       @stdout = []
@@ -132,9 +133,6 @@ module HRM
       @memory[index] = value or raise "floor set to no value"
     end
 
-    alias floor  :[]
-    alias floor= :[]=
-
     def zero? ; hands == "0"       || hands == 0 ; end
     def neg?  ; hands.to_s =~ /^-/ || hands < 1  ; end
 
@@ -146,11 +144,11 @@ module HRM
     def self.compile(strs)
       lines = strs.split(/\R/)
 
-      line_no = 1 ; mode = :read_code
+      instr_no = 1 ; mode = :read_code
 
       # label to offset lookup
       refs = {}
-      code = lines.map do |line|
+      code = lines.each_with_index.map do |line, line_no|
         case mode
 
         when :read_code
@@ -170,13 +168,13 @@ module HRM
             nil
           # a:
           elsif line =~ /^ *([a-z_0-9]*):/
-            refs[$1] = line_no
+            refs[$1] = instr_no
             nil
           else # translate code
             instruction, arg = line.split
             instruction = instruction.downcase.to_sym
             unless instruction == :comment
-              line_no += 1
+              instr_no += 1
               # todo - dereference
               if arg =~ /^\[(\d*)\]$/
                 arg, deref = [$1.to_i, true]
@@ -187,7 +185,7 @@ module HRM
                 # optimal 1 1/2 phase parser would be to remember where to run next block
                 arg = refs[arg] if refs.key?(arg)
               end
-              Op.new(line_no - 1, instruction, arg, deref)
+              Op.new(line_no + 1, instruction, arg, deref)
             end
           end
         # middle of a define comment block
@@ -256,8 +254,8 @@ module HRM
         o = im[state.pc] || Op::DONE
 
         puts o.inspect(state.counter) if debug
-        o.call(state)
-        state.exit!(:infinite) if state.counter > COUNTER_MAX
+        state = o.call(state)
+        state = state.exit!(:infinite) if state.counter > COUNTER_MAX
         puts state.inspect, "" if debug
       end
 
