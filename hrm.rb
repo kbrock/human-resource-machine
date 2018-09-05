@@ -236,16 +236,19 @@ module HRM
         "status"  => state.status,
       }
 
-      puts "#{result.inspect}"
-      if !result["success"]
-        puts "level:  #{level.number}"
-        puts "name:   #{level.name}"
-        puts
-        puts "inbox:  #{level.example_inbox.inspect}"
-        puts
-        puts "expected: #{level.example_outbox}"
-        puts "outbox:   #{state.stdout}"
+      unless options[:silent]
+        puts "#{result.inspect}"
+        if !result["success"]
+          puts "level:  #{level.number}"
+          puts "name:   #{level.name}"
+          puts
+          puts "inbox:  #{level.example_inbox.inspect}"
+          puts
+          puts "expected: #{level.example_outbox}"
+          puts "outbox:   #{state.stdout}"
+        end
       end
+      result["success"]
     end
 
     COUNTER_MAX = 2000
@@ -274,6 +277,7 @@ ARGV.options do |opts|
   opts.on( "-h", "--help",   "Show this message." ) { puts opts ; exit }
   opts.on(       "--debug",  "Debug instructions" ) { options[:debug] = true}
   opts.on(       "--source", "print source" ) { options[:print_source] = true}
+  opts.on(       "--silent", "no ouput (use return code)") { options[:silent] = true}
 
   begin
     opts.parse!
@@ -284,8 +288,14 @@ ARGV.options do |opts|
 end
 
 def guess_level(filename)
-  ARGV[0].gsub(/^[^0-9]*([0-9]*)[^0-9].*$/) { $1 }.to_i
+  filename.gsub(/^[^0-9]*([0-9]*)[^0-9].*$/) { $1 }.to_i
 end
 
+
+if ARGV.size == 0
+  puts "usage: #{PROGRAM_NAME} [level_number] filename"
+  exit 1
+end
 level, filename = ARGV[1] ? ARGV[0..1] : [guess_level(ARGV[0]), ARGV[0]]
-HRM::Machine.run(level, filename, options)
+success = HRM::Machine.run(level, filename, options)
+exit success ? 0 : 2
